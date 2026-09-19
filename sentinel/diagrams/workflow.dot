@@ -1,0 +1,52 @@
+digraph Sentinel {
+    rankdir=TB;
+    fontname="Helvetica";
+    bgcolor="white";
+    node [fontname="Helvetica", style=filled, fontsize=12];
+    edge [fontname="Helvetica", fontsize=10];
+
+    subgraph cluster_agents {
+        label="CrewAI Agent Hierarchy";
+        style=dashed;
+        color="#888888";
+        fontsize=14;
+        Monitor [label="Monitor Agent\n(parses logs & telemetry)", fillcolor="#cfe8ff", shape=box, style="rounded,filled"];
+        Diagnostician [label="Diagnostician Agent\n(RAG root-cause analysis)", fillcolor="#d8f5d0", shape=box, style="rounded,filled"];
+        Remediation [label="Remediation Agent\n(executes + guardrails)", fillcolor="#ffe4b5", shape=box, style="rounded,filled"];
+        DataIntel [label="Data Intelligence Agent\n(NL2SQL)", fillcolor="#f0d0f5", shape=box, style="rounded,filled"];
+    }
+
+    subgraph cluster_mcp {
+        label="MCP Server (sole entry point)";
+        style=dashed;
+        color="#888888";
+        fontsize=14;
+        get_logs [label="get_system_logs()", shape=component, fillcolor="#eeeeee"];
+        exec_cmd [label="execute_system_command()", shape=component, fillcolor="#eeeeee"];
+        query_kb [label="query_knowledge_base()", shape=component, fillcolor="#eeeeee"];
+        query_db [label="query_database()", shape=component, fillcolor="#eeeeee"];
+    }
+
+    Monitor -> get_logs;
+    Diagnostician -> query_kb;
+    Diagnostician -> get_logs;
+    Remediation -> exec_cmd;
+    DataIntel -> query_db;
+
+    START [shape=circle, style=filled, fillcolor="#333333", fontcolor=white, label="START"];
+    END_R [shape=doublecircle, style=filled, fillcolor="#2e7d32", fontcolor=white, label="RESOLVED"];
+    END_E [shape=doublecircle, style=filled, fillcolor="#c62828", fontcolor=white, label="ESCALATED"];
+    END_H [shape=doublecircle, style=filled, fillcolor="#555555", fontcolor=white, label="HEALTHY\n(no anomaly)"];
+
+    START -> Monitor [label="LangGraph loop"];
+    Monitor -> END_H [label="no anomaly"];
+    Monitor -> Diagnostician [label="anomaly detected"];
+    Diagnostician -> Remediation [label="root cause + action"];
+    Remediation -> Verify;
+    Verify [label="Verify\n(re-check metrics)", shape=box, style="rounded,filled", fillcolor="#fff3b0"];
+    Verify -> END_R [label="passed"];
+    Verify -> Diagnostician [label="failed & retries left\n[RETRY]", color="#c62828", fontcolor="#c62828", style=dashed];
+    Verify -> END_E [label="failed & retries exhausted"];
+
+    {rank=same; END_R; END_E; END_H;}
+}
